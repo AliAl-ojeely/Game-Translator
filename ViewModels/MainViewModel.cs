@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
 using System.Threading.Tasks;
 using System.Threading;
+using System.ComponentModel;
+using System.Windows.Data;
 using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -27,10 +28,15 @@ namespace GameTranslator.ViewModels
     {
         private readonly TranslationService _translationService;
         private readonly SettingsService _settingsService;
-        private CancellationTokenSource _cancellationTokenSource;
+        private CancellationTokenSource? _cancellationTokenSource;
 
         [ObservableProperty]
         private ObservableCollection<TranslationItem> _translationItems = new();
+
+        [ObservableProperty]
+        private string _searchText = string.Empty;
+
+        public ICollectionView TranslationItemsView { get; private set; }
 
         [ObservableProperty]
         private TranslationSettings _appSettings = new TranslationSettings();
@@ -50,7 +56,6 @@ namespace GameTranslator.ViewModels
         [ObservableProperty]
         private bool _isTranslationFinished = false;
 
-        // Progress and Report Properties
         [ObservableProperty]
         private double _progressPercentage = 0;
 
@@ -64,6 +69,29 @@ namespace GameTranslator.ViewModels
             _translationService = new TranslationService();
             _settingsService = new SettingsService();
             AppSettings = _settingsService.LoadSettings();
+
+            TranslationItemsView = CollectionViewSource.GetDefaultView(_translationItems);
+            TranslationItemsView.Filter = FilterTranslationItems;
+        }
+
+        partial void OnSearchTextChanged(string value)
+        {
+            TranslationItemsView.Refresh();
+        }
+
+        private bool FilterTranslationItems(object obj)
+        {
+            if (string.IsNullOrWhiteSpace(SearchText)) return true;
+
+            if (obj is TranslationItem item)
+            {
+                string searchLower = SearchText.ToLowerInvariant();
+                return (item.OriginalText != null && item.OriginalText.ToLowerInvariant().Contains(searchLower)) ||
+                       (item.TranslatedText != null && item.TranslatedText.ToLowerInvariant().Contains(searchLower)) ||
+                       (item.Id != null && item.Id.ToLowerInvariant().Contains(searchLower)) ||
+                       (item.ParentId != null && item.ParentId.ToLowerInvariant().Contains(searchLower));
+            }
+            return false;
         }
 
         [RelayCommand]
@@ -71,7 +99,7 @@ namespace GameTranslator.ViewModels
         {
             var openFileDialog = new OpenFileDialog
             {
-                Filter = "JSON Game Files (*.json)|*.json|All Files (*.*)|*.*",
+                Filter = "Supported Files (*.json;*.csv)|*.json;*.csv|JSON Files (*.json)|*.json|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
                 Title = "Select Game Localization File"
             };
 
@@ -83,30 +111,24 @@ namespace GameTranslator.ViewModels
                     IsTranslationFinished = false;
                     ProgressPercentage = 0;
                     EstimatedTimeRemaining = "";
+                    SearchText = string.Empty;
 
-                    string jsonContent = File.ReadAllText(openFileDialog.FileName);
-                    var parsedData = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, string>>>(jsonContent);
+                    string extension = Path.GetExtension(CurrentFilePath).ToLower();
+                    List<TranslationItem> items = new List<TranslationItem>();
+
+                    if (extension == ".csv")
+                    {
+                        items = _translationService.LoadCsv(CurrentFilePath);
+                    }
+                    else if (extension == ".json")
+                    {
+                        items = _translationService.LoadJson(CurrentFilePath);
+                    }
 
                     TranslationItems.Clear();
-
-                    if (parsedData != null)
+                    foreach (var item in items)
                     {
-                        int lineCounter = 1;
-
-                        foreach (var group in parsedData)
-                        {
-                            foreach (var item in group.Value)
-                            {
-                                TranslationItems.Add(new TranslationItem
-                                {
-                                    LineNumber = lineCounter++,
-                                    ParentId = group.Key,
-                                    Id = item.Key,
-                                    OriginalText = item.Value,
-                                    TranslatedText = string.Empty
-                                });
-                            }
-                        }
+                        TranslationItems.Add(item);
                     }
                 }
                 catch (Exception ex)
@@ -145,7 +167,7 @@ namespace GameTranslator.ViewModels
 
             LastReport = new TranslationReport
             {
-                FileName = Path.GetFileName(CurrentFilePath)
+                FileName = Path.GetFileName(CurrentFilePath) ?? "Unknown"
             };
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -167,7 +189,7 @@ namespace GameTranslator.ViewModels
                     continue;
                 }
 
-                if (item.OriginalText.Length > 2000)
+                if (item.OriginalText.Length > AppSettings.MaxCharactersPerString)
                 {
                     item.TranslatedText = "[Skipped: Text too long]";
                     LastReport.SkippedStringIds.Add(item.Id);
@@ -245,55 +267,47 @@ namespace GameTranslator.ViewModels
         {
             if (string.IsNullOrEmpty(CurrentFilePath) || TranslationItems.Count == 0) return;
 
-            var outputData = new Dictionary<string, Dictionary<string, string>>();
-
-            foreach (var item in TranslationItems)
-            {
-                if (!outputData.ContainsKey(item.ParentId))
-                    outputData[item.ParentId] = new Dictionary<string, string>();
-
-                string finalString = item.OriginalText;
-                if (!string.IsNullOrWhiteSpace(item.TranslatedText) &&
-                    item.TranslatedText != "Translating..." &&
-                    item.TranslatedText != "Waiting for translation..." &&
-                    !item.TranslatedText.StartsWith("[Skipped"))
-                {
-                    finalString = item.TranslatedText;
-                }
-
-                outputData[item.ParentId][item.Id] = finalString;
-            }
-
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-            };
-
-            string jsonOutput = JsonSerializer.Serialize(outputData, options);
-
             try
             {
-                if (action == SaveAction.Overwrite)
+                string targetPath = CurrentFilePath;
+                string currentExtension = Path.GetExtension(CurrentFilePath).ToLower();
+
+                if (action == SaveAction.SaveAsNew)
                 {
-                    File.WriteAllText(CurrentFilePath, jsonOutput);
-                    new CustomAlertWindow("Saved", "Original file overwritten successfully!").ShowDialog();
-                }
-                else if (action == SaveAction.SaveAsNew)
-                {
+                    string defaultExt = currentExtension == ".csv" ? ".csv" : ".json";
+                    string filter = currentExtension == ".csv"
+                        ? "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*"
+                        : "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
+
                     var saveDialog = new Microsoft.Win32.SaveFileDialog
                     {
-                        FileName = Path.GetFileNameWithoutExtension(CurrentFilePath) + "_ar" + Path.GetExtension(CurrentFilePath),
-                        Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                        InitialDirectory = Path.GetDirectoryName(CurrentFilePath)
+                        FileName = (Path.GetFileNameWithoutExtension(CurrentFilePath) ?? "Translated") + "_ar" + defaultExt,
+                        Filter = filter,
+                        InitialDirectory = Path.GetDirectoryName(CurrentFilePath) ?? string.Empty
                     };
 
                     if (saveDialog.ShowDialog() == true)
                     {
-                        File.WriteAllText(saveDialog.FileName, jsonOutput);
-                        new CustomAlertWindow("Saved", "New file saved successfully!").ShowDialog();
+                        targetPath = saveDialog.FileName;
+                    }
+                    else
+                    {
+                        return;
                     }
                 }
+
+                string targetExtension = Path.GetExtension(targetPath).ToLower();
+
+                if (targetExtension == ".csv")
+                {
+                    _translationService.SaveCsv(targetPath, TranslationItems);
+                }
+                else
+                {
+                    _translationService.SaveJson(targetPath, TranslationItems);
+                }
+
+                new CustomAlertWindow("Saved", action == SaveAction.Overwrite ? "Original file overwritten successfully!" : "New file saved successfully!").ShowDialog();
             }
             catch (Exception ex)
             {

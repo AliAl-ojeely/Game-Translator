@@ -144,68 +144,81 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="#0A0A0A" CornerRadius="8" Padding="15" Margin="0,0,0,10" BorderBrush="#1A1A1A" BorderThickness="1">
-            <StackPanel Orientation="Horizontal">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-                <Button Content="Open Game File" Width="120" Command="{Binding OpenFileCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,15,0"/>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Button Content="Open Game File" Width="120" Command="{Binding OpenFileCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,15,0"/>
 
-                <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#888888" FontWeight="SemiBold"/>
-                <ComboBox Width="90" SelectedValue="{Binding SelectedSourceLanguage}" SelectedValuePath="Content">
-                    <ComboBoxItem Content="English"/>
-                    <ComboBoxItem Content="Russian"/>
-                    <ComboBoxItem Content="Japanese"/>
-                </ComboBox>
+                    <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#888888" FontWeight="SemiBold"/>
+                    <ComboBox Width="90" SelectedValue="{Binding SelectedSourceLanguage}" SelectedValuePath="Content">
+                        <ComboBoxItem Content="English"/>
+                        <ComboBoxItem Content="Russian"/>
+                        <ComboBoxItem Content="Japanese"/>
+                    </ComboBox>
 
-                <TextBlock Text="To" VerticalAlignment="Center" Margin="15,0,8,0" Foreground="#888888" FontWeight="SemiBold"/>
-                <ComboBox Width="90" SelectedValue="{Binding SelectedTargetLanguage}" SelectedValuePath="Content">
-                    <ComboBoxItem Content="Arabic"/>
-                    <ComboBoxItem Content="English"/>
-                </ComboBox>
+                    <TextBlock Text="To" VerticalAlignment="Center" Margin="15,0,8,0" Foreground="#888888" FontWeight="SemiBold"/>
+                    <ComboBox Width="90" SelectedValue="{Binding SelectedTargetLanguage}" SelectedValuePath="Content">
+                        <ComboBoxItem Content="Arabic"/>
+                        <ComboBoxItem Content="English"/>
+                    </ComboBox>
 
-                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="15,0" Background="#333333"/>
+                    <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="15,0" Background="#333333"/>
 
-                <Grid>
-                    <Button Content="Translate All" Width="110" Command="{Binding StartTranslationCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsTranslating}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                    <Grid>
+                        <Button Content="Translate All" Width="110" Command="{Binding StartTranslationCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTranslating}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
 
-                    <Button Content="Cancel Translation" Width="125" Command="{Binding CancelTranslationCommand}" Background="#8B0000">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsTranslating}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#A93226"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                </Grid>
+                        <Button Content="Cancel Translation" Width="125" Command="{Binding CancelTranslationCommand}" Background="#8B0000">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTranslating}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#A93226"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
 
-                <Button Content="Settings" Width="80" Margin="10,0,0,0" Click="BtnSettings_Click" Style="{StaticResource SecondaryButton}"/>
+                    <Button Content="Settings" Width="80" Margin="10,0,0,0" Click="BtnSettings_Click" Style="{StaticResource SecondaryButton}"/>
 
-                <Button Content="Save File" Width="90" Margin="15,0,0,0" 
-                        Click="BtnSaveTranslation_Click"
-                        Background="#28A745" Foreground="White" BorderThickness="0"
-                        Visibility="{Binding IsTranslationFinished, Converter={StaticResource BooleanToVisibilityConverterFallback}}"/>
+                    <Button Content="Save File" Width="90" Margin="15,0,0,0" 
+                            Click="BtnSaveTranslation_Click"
+                            Background="#28A745" Foreground="White" BorderThickness="0"
+                            Visibility="{Binding IsTranslationFinished, Converter={StaticResource BooleanToVisibilityConverterFallback}}"/>
 
-                <Button Content="Report" Width="80" Margin="10,0,0,0" 
-                        Click="BtnReport_Click"
-                        Background="#6C757D" Foreground="White" BorderThickness="0"
-                        Visibility="{Binding IsTranslationFinished, Converter={StaticResource BooleanToVisibilityConverterFallback}}"/>
-            </StackPanel>
+                    <Button Content="Report" Width="80" Margin="10,0,0,0" 
+                            Click="BtnReport_Click"
+                            Background="#6C757D" Foreground="White" BorderThickness="0"
+                            Visibility="{Binding IsTranslationFinished, Converter={StaticResource BooleanToVisibilityConverterFallback}}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="Search:" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                    <TextBox Width="200" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
+                             Background="#1E1E1E" Foreground="White" BorderBrush="#333333" Padding="5,4" VerticalAlignment="Center"
+                             CaretBrush="White"/>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <Border Grid.Row="1" Background="#0A0A0A" CornerRadius="5" Padding="10" Margin="0,0,0,10" BorderBrush="#1A1A1A" BorderThickness="1"
@@ -222,13 +235,12 @@
 
         <Border Grid.Row="2" CornerRadius="8" BorderBrush="#1A1A1A" BorderThickness="1" ClipToBounds="True">
             <DataGrid AutoGenerateColumns="False" 
-                      ItemsSource="{Binding TranslationItems}"
+                      ItemsSource="{Binding TranslationItemsView}"
                       Background="#000000" AlternatingRowBackground="#050505"
                       HeadersVisibility="Column" GridLinesVisibility="None"
                       BorderThickness="0">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="N" Binding="{Binding LineNumber}" Width="50" IsReadOnly="True" Foreground="#888888" FontWeight="SemiBold"/>
-
                     <DataGridTextColumn Header="Group ID" Binding="{Binding ParentId}" Width="160" IsReadOnly="True" Foreground="#888888"/>
                     <DataGridTextColumn Header="String ID" Binding="{Binding Id}" Width="120" IsReadOnly="True" FontWeight="SemiBold"/>
 
@@ -240,7 +252,7 @@
                         </DataGridTextColumn.ElementStyle>
                     </DataGridTextColumn>
 
-                    <DataGridTextColumn Header="Translation" Binding="{Binding TranslatedText, UpdateSourceTrigger=PropertyChanged}" Width="4*">
+                    <DataGridTextColumn Header="Translation" Binding="{Binding TranslatedText, UpdateSourceTrigger=PropertyChanged}" Width="4*" IsReadOnly="False">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
                                 <Setter Property="TextWrapping" Value="Wrap"/>
@@ -251,6 +263,27 @@
                                 </Style.Triggers>
                             </Style>
                         </DataGridTextColumn.ElementStyle>
+
+                        <DataGridTextColumn.EditingElementStyle>
+                            <Style TargetType="TextBox">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                <Setter Property="AcceptsReturn" Value="True"/>
+                                <Setter Property="Background" Value="#1E1E1E"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Padding" Value="5"/>
+                                <Setter Property="CaretBrush" Value="White"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="ContextMenu">
+                                    <Setter.Value>
+                                        <ContextMenu Background="#1E1E1E" Foreground="White" BorderBrush="#333333">
+                                            <MenuItem Command="ApplicationCommands.Cut" Header="Cut" />
+                                            <MenuItem Command="ApplicationCommands.Copy" Header="Copy" />
+                                            <MenuItem Command="ApplicationCommands.Paste" Header="Paste" />
+                                        </ContextMenu>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </DataGridTextColumn.EditingElementStyle>
                     </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>

@@ -1,7 +1,7 @@
 ﻿<Window x:Class="GameTranslator.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Settings" Height="450" Width="650"
+        Title="Settings" Height="480" Width="650"
         Background="#1E1E1E" Foreground="#FFFFFF"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
 
@@ -10,11 +10,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="270"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -32,11 +33,14 @@
         <TextBlock Grid.Row="2" Grid.Column="0" Text="Max bytes per request" VerticalAlignment="Center" Margin="0,5"/>
         <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtMaxBytes" Width="100" HorizontalAlignment="Left" Margin="0,5" Background="#2D2D2D" Foreground="White" BorderBrush="#333333" Padding="2"/>
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Text="Prompt text (Use {0} for Source, {1} for Target):" VerticalAlignment="Top" Margin="0,15,0,5"/>
-        <TextBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" x:Name="TxtPromptTemplate" Margin="0,35,0,10" 
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Max characters per string (skip if longer)" VerticalAlignment="Center" Margin="0,5"/>
+        <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtMaxChars" Width="100" HorizontalAlignment="Left" Margin="0,5" Background="#2D2D2D" Foreground="White" BorderBrush="#333333" Padding="2"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Text="Prompt text (Use {0} for Source, {1} for Target):" VerticalAlignment="Top" Margin="0,15,0,5"/>
+        <TextBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" x:Name="TxtPromptTemplate" Margin="0,35,0,10" 
                  TextWrapping="Wrap" AcceptsReturn="True" Background="#2D2D2D" Foreground="#FFFFFF" BorderBrush="#333333" Padding="5"/>
 
-        <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+        <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
 
             <!-- OK Button -->
             <Button Content="OK" Width="80" Height="30" Margin="0,0,10,0" Foreground="White" BorderThickness="0" Cursor="Hand" Click="BtnOk_Click">

@@ -20,6 +20,7 @@ namespace GameTranslator
             TxtModel.Text = CurrentSettings.ModelName;
             TxtDelay.Text = CurrentSettings.DelayInSeconds.ToString();
             TxtMaxBytes.Text = CurrentSettings.MaxBytes.ToString();
+            TxtMaxChars.Text = CurrentSettings.MaxCharactersPerString.ToString();
             TxtPromptTemplate.Text = CurrentSettings.PromptTemplate;
         }
 
@@ -35,6 +36,9 @@ namespace GameTranslator
 
             if (int.TryParse(TxtMaxBytes.Text, out int maxBytes))
                 CurrentSettings.MaxBytes = maxBytes;
+
+            if (int.TryParse(TxtMaxChars.Text, out int maxChars))
+                CurrentSettings.MaxCharactersPerString = maxChars;
 
             // Mark dialog as successful and close
             this.DialogResult = true;
