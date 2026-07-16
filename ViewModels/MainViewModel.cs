@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameTranslator.Models;
 using GameTranslator.Services;
+using System.Windows;
 
 namespace GameTranslator.ViewModels
 {
@@ -62,6 +63,15 @@ namespace GameTranslator.ViewModels
         [ObservableProperty]
         private string _estimatedTimeRemaining = "Calculating...";
 
+        [ObservableProperty]
+        private string _textToClean = "";
+
+        [ObservableProperty]
+        private string _findText = string.Empty;
+
+        [ObservableProperty]
+        private string _replaceText = string.Empty;
+
         public TranslationReport LastReport { get; private set; } = new();
 
         public MainViewModel()
@@ -99,7 +109,7 @@ namespace GameTranslator.ViewModels
         {
             var openFileDialog = new OpenFileDialog
             {
-                Filter = "Supported Files (*.json;*.csv)|*.json;*.csv|JSON Files (*.json)|*.json|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                Filter = "All Supported Files|*.csv;*.json;*.tsv;*.loc.tsv|TSV Files (*.tsv;*.loc.tsv)|*.tsv;*.loc.tsv|JSON Files (*.json)|*.json|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
                 Title = "Select Game Localization File"
             };
 
@@ -114,6 +124,14 @@ namespace GameTranslator.ViewModels
                     SearchText = string.Empty;
 
                     string extension = Path.GetExtension(CurrentFilePath).ToLower();
+                    bool isLocTsv = CurrentFilePath.EndsWith(".loc.tsv", StringComparison.OrdinalIgnoreCase);
+
+                    if (extension == ".tsv" || isLocTsv)
+                    {
+                        LoadTsvFile(CurrentFilePath);
+                        return;
+                    }
+
                     List<TranslationItem> items = new List<TranslationItem>();
 
                     if (extension == ".csv")
@@ -136,6 +154,184 @@ namespace GameTranslator.ViewModels
                     new CustomAlertWindow("Error", $"Error reading file: {ex.Message}").ShowDialog();
                 }
             }
+        }
+
+        [RelayCommand]
+        private void CleanTranslatedText()
+        {
+            // Ensure the user entered text and there is loaded data
+            if (string.IsNullOrWhiteSpace(TextToClean) || TranslationItems.Count == 0)
+            {
+                new CustomAlertWindow("Alert", "Please select a file and enter the text to be cleaned.").ShowDialog();
+                return;
+            }
+
+            int cleanedCount = 0;
+
+            foreach (var item in TranslationItems)
+            {
+                // Check if the translation exists and contains the unwanted text
+                if (!string.IsNullOrEmpty(item.TranslatedText) && item.TranslatedText.Contains(TextToClean))
+                {
+                    // Replace the unwanted text with an empty string and trim any extra spaces
+                    item.TranslatedText = item.TranslatedText.Replace(TextToClean, "").Trim();
+                    cleanedCount++;
+                }
+            }
+
+            // Show the result to the user and update the UI
+            if (cleanedCount > 0)
+            {
+                var editableCollectionView = TranslationItemsView as System.ComponentModel.IEditableCollectionView;
+                
+                if (editableCollectionView != null) 
+                {
+                    if(editableCollectionView.IsEditingItem)
+                        editableCollectionView.CommitEdit();
+
+                    if(editableCollectionView.IsAddingNew)
+                        editableCollectionView.CommitEdit();
+                }
+
+                TranslationItemsView.Refresh(); // Update the DataGrid
+                new CustomAlertWindow("Cleanup Complete", $"Text found and removed from {cleanedCount} lines successfully!").ShowDialog();
+            }
+            else
+            {
+                new CustomAlertWindow("Search Result", "No texts containing this word or symbol were found.").ShowDialog();
+            }
+        }
+
+        [RelayCommand]
+        private void ClearAllTranslations()
+        {
+            if(TranslationItems.Count == 0)
+            {
+                new CustomAlertWindow("Alert", "Please select a game localization file first.").ShowDialog();
+                return;
+            }
+
+            bool hasTranslations = TranslationItems.Any(item => !string.IsNullOrWhiteSpace(item.TranslatedText));
+
+            if(!hasTranslations)
+            {
+                new CustomAlertWindow("Information", "There is no translated text yet.\nSo there is nothing need to be clear.").ShowDialog();
+                return;
+            }
+
+            var confirmWindow = new CustomConfirmWindow("Confirm Clear", "Are you sure you want to clear ALL translations?\nThis action cannot be undone.");
+
+            if (confirmWindow.ShowDialog() == true)
+            {
+                int count = 0;
+                foreach (var item in TranslationItems)
+                {
+                    if (!string.IsNullOrEmpty(item.TranslatedText))
+                    {
+                        item.TranslatedText = string.Empty;
+                        count++;
+                    }
+                }
+
+                if (count > 0)
+                {
+                    TranslationItemsView.Refresh();
+                    new CustomAlertWindow("Cleared", $"All {count} translations have been cleared successfully.").ShowDialog();
+                }
+            }
+        }
+
+        private void LoadTsvFile(string filePath)
+        {
+            try
+            {
+                var lines = System.IO.File.ReadAllLines(filePath, System.Text.Encoding.UTF8);
+                TranslationItems.Clear();
+                int lineNumber = 1;
+
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    var columns = line.Split('\t');
+
+                    if (columns.Length >= 3)
+                    {
+                        string keyId = columns[0].Trim();
+                        string originalTxt = columns[1].Trim();
+                        string tooltipVal = columns[2].Trim();
+
+                        if (keyId.Equals("Key", StringComparison.OrdinalIgnoreCase) ||
+                            keyId.StartsWith("TSV") ||
+                            keyId.StartsWith("#") ||
+                            string.IsNullOrWhiteSpace(keyId))
+                        {
+                            continue;
+                        }
+
+                        if (originalTxt.StartsWith("\"") && originalTxt.EndsWith("\""))
+                        {
+                            originalTxt = originalTxt.Substring(1, originalTxt.Length - 2);
+                        }
+
+                        originalTxt = originalTxt.Replace("\\n", "\n").Replace("\\t", "\t");
+
+                        TranslationItems.Add(new TranslationItem
+                        {
+                            LineNumber = lineNumber++,
+                            Id = keyId,
+                            OriginalText = originalTxt,
+                            TranslatedText = string.Empty,
+                            TooltipValue = string.IsNullOrWhiteSpace(tooltipVal) ? "false" : tooltipVal // حفظ القيمة
+                        });
+                    }
+                }
+
+                TranslationItemsView.Refresh();
+            }
+            catch (Exception ex)
+            {
+                new CustomAlertWindow("Error", $"Failed to load TSV file:\n{ex.Message}").ShowDialog();
+            }
+        }
+
+        [RelayCommand]
+        private void FindAndReplace()
+        {
+            if (string.IsNullOrWhiteSpace(FindText) || TranslationItems.Count == 0)
+            {
+                new CustomAlertWindow("Alert", "Please enter the text you want to find.").ShowDialog();
+                return;
+            }
+
+            int replacedCount = 0;
+
+            foreach (var item in TranslationItems)
+            {
+                if (!string.IsNullOrEmpty(item.TranslatedText) && item.TranslatedText.Contains(FindText))
+                {
+                    item.TranslatedText = item.TranslatedText.Replace(FindText, ReplaceText);
+                    replacedCount++;
+                }
+            }
+
+            if (replacedCount > 0)
+            {
+                TranslationItemsView.Refresh();
+                new CustomAlertWindow("Success", $"Replaced '{FindText}' with '{ReplaceText}' in {replacedCount} lines.").ShowDialog();
+            }
+            else
+            {
+                new CustomAlertWindow("Not Found", $"The text '{FindText}' was not found in the translated column.").ShowDialog();
+            }
+        }
+
+        [RelayCommand]
+        private void OpenFindReplaceWindow()
+        {
+            var window = new Views.FindAndReplaceWindow(this);
+            window.Owner = Application.Current.MainWindow;    
+            window.ShowDialog();
         }
 
         [RelayCommand]
@@ -271,17 +467,31 @@ namespace GameTranslator.ViewModels
             {
                 string targetPath = CurrentFilePath;
                 string currentExtension = Path.GetExtension(CurrentFilePath).ToLower();
+                bool isLocTsv = CurrentFilePath.EndsWith(".loc.tsv", StringComparison.OrdinalIgnoreCase);
 
                 if (action == SaveAction.SaveAsNew)
                 {
-                    string defaultExt = currentExtension == ".csv" ? ".csv" : ".json";
-                    string filter = currentExtension == ".csv"
-                        ? "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*"
-                        : "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
+                    string defaultExt = ".json";
+                    string filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
+
+                    if (currentExtension == ".csv")
+                    {
+                        defaultExt = ".csv";
+                        filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*";
+                    }
+                    else if (currentExtension == ".tsv" || isLocTsv)
+                    {
+                        defaultExt = isLocTsv ? ".loc.tsv" : ".tsv";
+                        filter = "TSV Files (*.tsv;*.loc.tsv)|*.tsv;*.loc.tsv|All Files (*.*)|*.*";
+                    }
+
+                    string fileNameWithoutExt = isLocTsv
+                        ? Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(CurrentFilePath))
+                        : Path.GetFileNameWithoutExtension(CurrentFilePath);
 
                     var saveDialog = new Microsoft.Win32.SaveFileDialog
                     {
-                        FileName = (Path.GetFileNameWithoutExtension(CurrentFilePath) ?? "Translated") + "_ar" + defaultExt,
+                        FileName = (fileNameWithoutExt ?? "Translated") + "_ar" + defaultExt,
                         Filter = filter,
                         InitialDirectory = Path.GetDirectoryName(CurrentFilePath) ?? string.Empty
                     };
@@ -297,10 +507,15 @@ namespace GameTranslator.ViewModels
                 }
 
                 string targetExtension = Path.GetExtension(targetPath).ToLower();
+                bool targetIsLocTsv = targetPath.EndsWith(".loc.tsv", StringComparison.OrdinalIgnoreCase);
 
                 if (targetExtension == ".csv")
                 {
                     _translationService.SaveCsv(targetPath, TranslationItems);
+                }
+                else if (targetExtension == ".tsv" || targetIsLocTsv)
+                {
+                    _translationService.SaveTsv(targetPath, TranslationItems);
                 }
                 else
                 {

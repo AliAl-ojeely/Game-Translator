@@ -21,5 +21,9 @@ namespace GameTranslator.Models
 
         [ObservableProperty]
         private string _translatedText = string.Empty;
+
+        // Keeps track of the third column in RPFM TSV (usually "true" or "false" for checkboxes)
+        [ObservableProperty]
+        private string _tooltipValue = "false";
     }
 }

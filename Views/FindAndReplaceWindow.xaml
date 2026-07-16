@@ -1,0 +1,39 @@
+﻿<Window x:Class="GameTranslator.Views.FindAndReplaceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Find and Replace" Height="220" Width="350"
+        Background="#121212" Foreground="White"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False">
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Find:" Foreground="#CCCCCC" Margin="0,0,0,5"/>
+            <TextBox Text="{Binding FindText, UpdateSourceTrigger=PropertyChanged}" 
+                     Background="#1E1E1E" Foreground="White" BorderBrush="#333333" Padding="5"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,15">
+            <TextBlock Text="Replace:" Foreground="#CCCCCC" Margin="0,0,0,5"/>
+            <TextBox Text="{Binding ReplaceText, UpdateSourceTrigger=PropertyChanged}" 
+                     Background="#1E1E1E" Foreground="White" BorderBrush="#333333" Padding="5"/>
+        </StackPanel>
+
+        <Button Grid.Row="2" Content="Replace All" Command="{Binding FindAndReplaceCommand}" 
+                Background="#0078D7" Foreground="White" Height="35" Cursor="Hand" BorderThickness="0">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+    </Grid>
+</Window>

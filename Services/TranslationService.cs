@@ -204,5 +204,23 @@ namespace GameTranslator.Services
                 }
             }
         }
+
+        public void SaveTsv(string filePath, IEnumerable<TranslationItem> items)
+        {
+            var sb = new System.Text.StringBuilder();
+
+            sb.AppendLine("Key\tText\tTooltip");
+
+            foreach (var item in items)
+            {
+                string finalTxt = string.IsNullOrWhiteSpace(item.TranslatedText) ? item.OriginalText : item.TranslatedText;
+
+                finalTxt = finalTxt.Replace("\n", "\\n").Replace("\r", "");
+
+                sb.AppendLine($"{item.Id}\t{finalTxt}\t{item.TooltipValue}");
+            }
+
+            System.IO.File.WriteAllText(filePath, sb.ToString(), System.Text.Encoding.UTF8);
+        }
     }
 }
