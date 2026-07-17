@@ -207,20 +207,29 @@ namespace GameTranslator.Services
 
         public void SaveTsv(string filePath, IEnumerable<TranslationItem> items)
         {
-            var sb = new System.Text.StringBuilder();
+            var utf8WithoutBom = new UTF8Encoding(false);
 
-            sb.AppendLine("Key\tText\tTooltip");
-
-            foreach (var item in items)
+            using (var writer = new StreamWriter(filePath, false, utf8WithoutBom))
             {
-                string finalTxt = string.IsNullOrWhiteSpace(item.TranslatedText) ? item.OriginalText : item.TranslatedText;
+                writer.NewLine = "\n";
 
-                finalTxt = finalTxt.Replace("\n", "\\n").Replace("\r", "");
+                writer.WriteLine("key\ttext\ttooltip");
 
-                sb.AppendLine($"{item.Id}\t{finalTxt}\t{item.TooltipValue}");
+                string locFileName = Path.GetFileNameWithoutExtension(filePath);
+                writer.WriteLine($"#Loc;1;text/db/{locFileName}");
+
+                foreach (var item in items)
+                {
+                    string finalTxt = string.IsNullOrWhiteSpace(item.TranslatedText)
+                                      ? item.OriginalText
+                                      : item.TranslatedText;
+
+                    finalTxt = finalTxt.Replace("\t", " ").Replace("\n", "\\n").Replace("\r", "");
+                    string tooltip = string.IsNullOrWhiteSpace(item.TooltipValue) ? "false" : item.TooltipValue;
+
+                    writer.WriteLine($"{item.Id}\t{finalTxt}\t{tooltip}");
+                }
             }
-
-            System.IO.File.WriteAllText(filePath, sb.ToString(), System.Text.Encoding.UTF8);
         }
     }
 }
