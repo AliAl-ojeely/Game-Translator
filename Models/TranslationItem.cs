@@ -25,5 +25,9 @@ namespace GameTranslator.Models
         // Keeps track of the third column in RPFM TSV (usually "true" or "false" for checkboxes)
         [ObservableProperty]
         private string _tooltipValue = "false";
+
+        // Property to indicate if an error occurred during translation (e.g., missing variables)
+        [ObservableProperty]
+        private bool _isError = false;
     }
 }

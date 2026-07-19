@@ -76,6 +76,11 @@
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#111111"/>
                 </Trigger>
+                <!-- Highlight row in red if an error occurred during translation -->
+                <DataTrigger Binding="{Binding IsError}" Value="True">
+                    <Setter Property="Background" Value="#8B0000"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 

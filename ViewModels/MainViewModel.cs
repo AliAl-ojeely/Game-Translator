@@ -13,6 +13,8 @@ using CommunityToolkit.Mvvm.Input;
 using GameTranslator.Models;
 using GameTranslator.Services;
 using System.Windows;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace GameTranslator.ViewModels
 {
@@ -109,7 +111,8 @@ namespace GameTranslator.ViewModels
         {
             var openFileDialog = new OpenFileDialog
             {
-                Filter = "All Supported Files|*.csv;*.json;*.tsv;*.loc.tsv|TSV Files (*.tsv;*.loc.tsv)|*.tsv;*.loc.tsv|JSON Files (*.json)|*.json|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                // Updated filter to officially support *.txt selection
+                Filter = "All Supported Files|*.csv;*.json;*.tsv;*.loc.tsv;*.txt|Text Files (*.txt)|*.txt|TSV Files (*.tsv;*.loc.tsv)|*.tsv;*.loc.tsv|JSON Files (*.json)|*.json|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
                 Title = "Select Game Localization File"
             };
 
@@ -142,6 +145,10 @@ namespace GameTranslator.ViewModels
                     {
                         items = _translationService.LoadJson(CurrentFilePath);
                     }
+                    else if (extension == ".txt")
+                    {
+                        items = _translationService.LoadTxt(CurrentFilePath);
+                    }
 
                     TranslationItems.Clear();
                     foreach (var item in items)
@@ -159,7 +166,6 @@ namespace GameTranslator.ViewModels
         [RelayCommand]
         private void CleanTranslatedText()
         {
-            // Ensure the user entered text and there is loaded data
             if (string.IsNullOrWhiteSpace(TextToClean) || TranslationItems.Count == 0)
             {
                 new CustomAlertWindow("Alert", "Please select a file and enter the text to be cleaned.").ShowDialog();
@@ -170,30 +176,27 @@ namespace GameTranslator.ViewModels
 
             foreach (var item in TranslationItems)
             {
-                // Check if the translation exists and contains the unwanted text
                 if (!string.IsNullOrEmpty(item.TranslatedText) && item.TranslatedText.Contains(TextToClean))
                 {
-                    // Replace the unwanted text with an empty string and trim any extra spaces
                     item.TranslatedText = item.TranslatedText.Replace(TextToClean, "").Trim();
                     cleanedCount++;
                 }
             }
 
-            // Show the result to the user and update the UI
             if (cleanedCount > 0)
             {
-                var editableCollectionView = TranslationItemsView as System.ComponentModel.IEditableCollectionView;
-                
-                if (editableCollectionView != null) 
+                var editableCollectionView = TranslationItemsView as IEditableCollectionView;
+
+                if (editableCollectionView != null)
                 {
-                    if(editableCollectionView.IsEditingItem)
+                    if (editableCollectionView.IsEditingItem)
                         editableCollectionView.CommitEdit();
 
-                    if(editableCollectionView.IsAddingNew)
+                    if (editableCollectionView.IsAddingNew)
                         editableCollectionView.CommitEdit();
                 }
 
-                TranslationItemsView.Refresh(); // Update the DataGrid
+                TranslationItemsView.Refresh();
                 new CustomAlertWindow("Cleanup Complete", $"Text found and removed from {cleanedCount} lines successfully!").ShowDialog();
             }
             else
@@ -205,7 +208,7 @@ namespace GameTranslator.ViewModels
         [RelayCommand]
         private void ClearAllTranslations()
         {
-            if(TranslationItems.Count == 0)
+            if (TranslationItems.Count == 0)
             {
                 new CustomAlertWindow("Alert", "Please select a game localization file first.").ShowDialog();
                 return;
@@ -213,7 +216,7 @@ namespace GameTranslator.ViewModels
 
             bool hasTranslations = TranslationItems.Any(item => !string.IsNullOrWhiteSpace(item.TranslatedText));
 
-            if(!hasTranslations)
+            if (!hasTranslations)
             {
                 new CustomAlertWindow("Information", "There is no translated text yet.\nSo there is nothing need to be clear.").ShowDialog();
                 return;
@@ -229,6 +232,7 @@ namespace GameTranslator.ViewModels
                     if (!string.IsNullOrEmpty(item.TranslatedText))
                     {
                         item.TranslatedText = string.Empty;
+                        item.IsError = false;
                         count++;
                     }
                 }
@@ -245,7 +249,7 @@ namespace GameTranslator.ViewModels
         {
             try
             {
-                var lines = System.IO.File.ReadAllLines(filePath, System.Text.Encoding.UTF8);
+                var lines = File.ReadAllLines(filePath, System.Text.Encoding.UTF8);
                 TranslationItems.Clear();
                 int lineNumber = 1;
 
@@ -282,7 +286,8 @@ namespace GameTranslator.ViewModels
                             Id = keyId,
                             OriginalText = originalTxt,
                             TranslatedText = string.Empty,
-                            TooltipValue = string.IsNullOrWhiteSpace(tooltipVal) ? "false" : tooltipVal // حفظ القيمة
+                            TooltipValue = string.IsNullOrWhiteSpace(tooltipVal) ? "false" : tooltipVal,
+                            IsError = false
                         });
                     }
                 }
@@ -330,7 +335,7 @@ namespace GameTranslator.ViewModels
         private void OpenFindReplaceWindow()
         {
             var window = new Views.FindAndReplaceWindow(this);
-            window.Owner = Application.Current.MainWindow;    
+            window.Owner = Application.Current.MainWindow;
             window.ShowDialog();
         }
 
@@ -341,6 +346,21 @@ namespace GameTranslator.ViewModels
             {
                 _cancellationTokenSource.Cancel();
             }
+        }
+
+        // Helper method for smart text checking
+        private bool IsOnlyVariablesOrSymbols(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return true;
+
+            // Remove all content within {} and HTML tags temporarily for evaluation
+            string cleanText = Regex.Replace(text, @"\{.*?\}|<.*?>", "");
+
+            // Check if the remaining text contains any alphabetic letters from any language
+            bool hasLetters = Regex.IsMatch(cleanText, @"\p{L}");
+
+            // If there are no letters left, the line consists only of symbols or variables
+            return !hasLetters;
         }
 
         [RelayCommand]
@@ -379,48 +399,84 @@ namespace GameTranslator.ViewModels
 
                 currentIndex++;
 
-                if (!string.IsNullOrWhiteSpace(item.TranslatedText) && item.TranslatedText != "Translating...")
+                // Wrap the translation process in a try-catch to ensure the loop never stops on a single failure
+                try
                 {
+                    if (!string.IsNullOrWhiteSpace(item.TranslatedText) && item.TranslatedText != "Translating...")
+                    {
+                        UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
+                        continue;
+                    }
+
+                    // Smart check to skip lines containing only variables, brackets, or symbols
+                    if (IsOnlyVariablesOrSymbols(item.OriginalText))
+                    {
+                        item.TranslatedText = item.OriginalText;
+                        item.IsError = false;
+                        LastReport.TranslatedCount++;
+                        UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
+                        continue;
+                    }
+
+                    if (item.OriginalText.Length > AppSettings.MaxCharactersPerString)
+                    {
+                        item.TranslatedText = "[Skipped: Text too long]";
+                        item.IsError = true; // Marks the row in red
+                        LastReport.SkippedStringIds.Add(item.Id);
+                        UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
+                        continue; // Proceed to the next line without crashing the app
+                    }
+
+                    item.TranslatedText = "Translating...";
+
+                    // Send request to the model
+                    string result = await _translationService.TranslateTextAsync(
+                        item.OriginalText,
+                        AppSettings,
+                        SelectedSourceLanguage,
+                        SelectedTargetLanguage);
+
+                    // Error validation logic
+                    bool hasError = false;
+
+                    if (string.IsNullOrWhiteSpace(result) || result.StartsWith("[Error") || result.StartsWith("[Skipped"))
+                    {
+                        hasError = true;
+                    }
+                    else if (item.OriginalText.Contains("{") && !result.Contains("{"))
+                    {
+                        hasError = true; // Model forgot the brackets
+                    }
+
+                    item.IsError = hasError;
+                    item.TranslatedText = result;
+
+                    if (!hasError)
+                    {
+                        LastReport.TranslatedCount++;
+                        LastReport.TranslatedCharacters += result.Length;
+                    }
+
                     UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
-                    continue;
-                }
 
-                if (item.OriginalText.Length > AppSettings.MaxCharactersPerString)
-                {
-                    item.TranslatedText = "[Skipped: Text too long]";
-                    LastReport.SkippedStringIds.Add(item.Id);
-                    UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
-                    continue;
-                }
-
-                item.TranslatedText = "Translating...";
-
-                string result = await _translationService.TranslateTextAsync(
-                    item.OriginalText,
-                    AppSettings,
-                    SelectedSourceLanguage,
-                    SelectedTargetLanguage);
-
-                item.TranslatedText = result;
-
-                if (!result.StartsWith("[Error") && !result.StartsWith("[Skipped"))
-                {
-                    LastReport.TranslatedCount++;
-                    LastReport.TranslatedCharacters += result.Length;
-                }
-
-                UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
-
-                if (AppSettings.DelayInSeconds > 0)
-                {
-                    try
+                    if (AppSettings.DelayInSeconds > 0)
                     {
                         await Task.Delay(AppSettings.DelayInSeconds * 1000, _cancellationTokenSource.Token);
                     }
-                    catch (TaskCanceledException)
-                    {
-                        break;
-                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // Manually canceled
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    // === Robust fail-safe mechanism ===
+                    // If any unexpected error occurs, the app will not crash
+                    item.IsError = true;
+                    item.TranslatedText = $"[Error: {ex.Message}]";
+                    UpdateProgress(currentIndex, totalItems, stopwatch.Elapsed);
+                    continue; // Skip the broken line and move immediately to the next one
                 }
             }
 
@@ -434,7 +490,7 @@ namespace GameTranslator.ViewModels
             IsTranslationFinished = true;
 
             System.Media.SystemSounds.Asterisk.Play();
-            new CustomAlertWindow("Translation Complete", "The translation process has finished successfully!").ShowDialog();
+            new CustomAlertWindow("Translation Complete", "The translation process has finished! Check any red rows for errors.").ShowDialog();
         }
 
         private void UpdateProgress(int current, int total, TimeSpan elapsed)
@@ -466,30 +522,15 @@ namespace GameTranslator.ViewModels
             try
             {
                 string targetPath = CurrentFilePath;
-                string currentExtension = Path.GetExtension(CurrentFilePath).ToLower();
-                bool isLocTsv = CurrentFilePath.EndsWith(".loc.tsv", StringComparison.OrdinalIgnoreCase);
 
                 if (action == SaveAction.SaveAsNew)
                 {
-                    string defaultExt = ".json";
-                    string filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
+                    string defaultExt = ".txt";
+                    string filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
 
-                    if (currentExtension == ".csv")
-                    {
-                        defaultExt = ".csv";
-                        filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*";
-                    }
-                    else if (currentExtension == ".tsv" || isLocTsv)
-                    {
-                        defaultExt = isLocTsv ? ".loc.tsv" : ".tsv";
-                        filter = "TSV Files (*.tsv;*.loc.tsv)|*.tsv;*.loc.tsv|All Files (*.*)|*.*";
-                    }
+                    string fileNameWithoutExt = Path.GetFileNameWithoutExtension(CurrentFilePath);
 
-                    string fileNameWithoutExt = isLocTsv
-                        ? Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(CurrentFilePath))
-                        : Path.GetFileNameWithoutExtension(CurrentFilePath);
-
-                    var saveDialog = new Microsoft.Win32.SaveFileDialog
+                    var saveDialog = new SaveFileDialog
                     {
                         FileName = (fileNameWithoutExt ?? "Translated") + "_ar" + defaultExt,
                         Filter = filter,
@@ -505,24 +546,15 @@ namespace GameTranslator.ViewModels
                         return;
                     }
                 }
-
-                string targetExtension = Path.GetExtension(targetPath).ToLower();
-                bool targetIsLocTsv = targetPath.EndsWith(".loc.tsv", StringComparison.OrdinalIgnoreCase);
-
-                if (targetExtension == ".csv")
+                else if (action == SaveAction.Overwrite)
                 {
-                    _translationService.SaveCsv(targetPath, TranslationItems);
-                }
-                else if (targetExtension == ".tsv" || targetIsLocTsv)
-                {
-                    _translationService.SaveTsv(targetPath, TranslationItems);
-                }
-                else
-                {
-                    _translationService.SaveJson(targetPath, TranslationItems);
+                    // Forces an overwrite specifically to .txt format
+                    targetPath = Path.ChangeExtension(CurrentFilePath, ".txt");
                 }
 
-                new CustomAlertWindow("Saved", action == SaveAction.Overwrite ? "Original file overwritten successfully!" : "New file saved successfully!").ShowDialog();
+                _translationService.SaveTxt(targetPath, TranslationItems);
+
+                new CustomAlertWindow("Saved", action == SaveAction.Overwrite ? "Text file overwritten successfully!" : "Text file saved successfully!").ShowDialog();
             }
             catch (Exception ex)
             {

@@ -36,10 +36,10 @@ namespace GameTranslator.Services
                 {
                     Model = settings.ModelName,
                     Messages = new List<ChatMessage>
-            {
-                new ChatMessage { Role = "system", Content = formattedSystemPrompt },
-                new ChatMessage { Role = "user", Content = textToTranslate }
-            }
+                    {
+                        new ChatMessage { Role = "system", Content = formattedSystemPrompt },
+                        new ChatMessage { Role = "user", Content = textToTranslate }
+                    }
                 };
 
                 string jsonContent = JsonSerializer.Serialize(requestPayload);
@@ -63,6 +63,30 @@ namespace GameTranslator.Services
             }
         }
 
+        // New method to load standard TXT files line by line
+        public List<TranslationItem> LoadTxt(string filePath)
+        {
+            var items = new List<TranslationItem>();
+            var lines = File.ReadAllLines(filePath, Encoding.UTF8);
+
+            int lineCounter = 1;
+            foreach (var line in lines)
+            {
+                items.Add(new TranslationItem
+                {
+                    LineNumber = lineCounter,
+                    ParentId = "TXT_Doc",
+                    Id = $"L{lineCounter}",
+                    OriginalText = line,
+                    TranslatedText = string.Empty,
+                    IsError = false
+                });
+                lineCounter++;
+            }
+
+            return items;
+        }
+
         public List<TranslationItem> LoadJson(string filePath)
         {
             var items = new List<TranslationItem>();
@@ -82,7 +106,8 @@ namespace GameTranslator.Services
                             ParentId = group.Key,
                             Id = item.Key,
                             OriginalText = item.Value,
-                            TranslatedText = string.Empty
+                            TranslatedText = string.Empty,
+                            IsError = false
                         });
                     }
                 }
@@ -160,7 +185,8 @@ namespace GameTranslator.Services
                         ParentId = parentId,
                         Id = id,
                         OriginalText = source,
-                        TranslatedText = translation
+                        TranslatedText = translation,
+                        IsError = false
                     });
                 }
             }
@@ -228,6 +254,36 @@ namespace GameTranslator.Services
                     string tooltip = string.IsNullOrWhiteSpace(item.TooltipValue) ? "false" : item.TooltipValue;
 
                     writer.WriteLine($"{item.Id}\t{finalTxt}\t{tooltip}");
+                }
+            }
+        }
+
+        // Saves to standard TXT format keeping lines intact
+        public void SaveTxt(string filePath, IEnumerable<TranslationItem> items)
+        {
+            var utf8WithoutBom = new UTF8Encoding(false);
+
+            using (var writer = new StreamWriter(filePath, false, utf8WithoutBom))
+            {
+                writer.NewLine = "\n";
+                foreach (var item in items)
+                {
+                    // If the original text was completely empty, write an empty line to maintain spacing
+                    if (string.IsNullOrEmpty(item.OriginalText))
+                    {
+                        writer.WriteLine("");
+                        continue;
+                    }
+
+                    string finalTxt = string.IsNullOrWhiteSpace(item.TranslatedText) ||
+                                      item.TranslatedText == "Translating..." ||
+                                      item.TranslatedText.StartsWith("[Skipped") ||
+                                      item.TranslatedText.StartsWith("[Error")
+                                      ? item.OriginalText
+                                      : item.TranslatedText;
+
+                    // Write the translation safely
+                    writer.WriteLine(finalTxt.Replace("\r", ""));
                 }
             }
         }
